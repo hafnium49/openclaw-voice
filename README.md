@@ -73,6 +73,7 @@ PYTHONPATH=. ELEVENLABS_API_KEY="$ELEVENLABS_API_KEY" OPENAI_API_KEY="$OPENAI_AP
 | `OPENCLAW_PORT` | No | `8765` | Server port |
 | `OPENCLAW_STT_MODEL` | No | `base` | Whisper model size |
 | `OPENCLAW_STT_DEVICE` | No | `auto` | Device: `auto`, `cpu`, `cuda`, `mps` |
+| `OPENCLAW_STT_LANGUAGE` | No | `en` | Whisper language hint (`ja`, `en`, `auto`) |
 | `OPENCLAW_REQUIRE_AUTH` | No | `false` | Require API keys for clients |
 
 *One of `OPENAI_API_KEY` or `OPENCLAW_GATEWAY_URL` required.
@@ -96,7 +97,7 @@ PYTHONPATH=. ELEVENLABS_API_KEY="$ELEVENLABS_API_KEY" OPENAI_API_KEY="$OPENAI_AP
 | XTTS-v2 | Local | Excellent | ~1s | Voice cloning supported |
 | Mock | Local | None | 0ms | For testing (silence) |
 
-ElevenLabs uses `eleven_turbo_v2_5` for fastest response.
+ElevenLabs defaults can be tuned for quality/latency tradeoff. For Japanese conversational quality, `eleven_multilingual_v2` is recommended over the fastest turbo setting.
 
 ## OpenClaw Gateway Integration
 
@@ -106,6 +107,7 @@ Connect to your full OpenClaw agent (same memory, tools, and persona as text cha
 # .env
 OPENCLAW_GATEWAY_URL=http://localhost:18789
 OPENCLAW_GATEWAY_TOKEN=your-token
+OPENCLAW_STT_LANGUAGE=ja
 ELEVENLABS_API_KEY=your-key
 ```
 
@@ -131,6 +133,25 @@ Add to your `openclaw.json`:
   }
 }
 ```
+
+## Common Troubleshooting
+
+### Browser mic error: `Cannot read properties of undefined (reading 'getUserMedia')`
+
+On some Android Chrome builds, `navigator.mediaDevices` is blocked on insecure origins.
+
+Quick test workaround:
+1. Open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`
+2. Add your URL (example: `http://192.168.31.242:8765`)
+3. Relaunch Chrome
+
+For production, use HTTPS/reverse proxy or kiosk deployment.
+
+### Gateway mode returns repeated fallback sentence
+
+If logs show `OpenAI streaming error: Method Not Allowed` while using OpenClaw Gateway,
+this means the gateway route rejected streaming. Current runtime now falls back to
+non-streaming chat automatically. Verify by checking server logs after restart.
 
 ## Architecture
 
