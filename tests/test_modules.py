@@ -7,6 +7,7 @@ import numpy as np
 import asyncio
 import os
 import sys
+import json
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -88,6 +89,76 @@ class TestAIBackend:
         backend.conversation_history = [{"role": "user", "content": "test"}]
         backend.clear_history()
         assert len(backend.conversation_history) == 0
+
+    def test_memory_persistence_load_save(self, tmp_path):
+        """Test history is persisted and restored across backend instances."""
+        memory_file = tmp_path / "conversation.json"
+
+        backend = AIBackend(
+            memory_enabled=True,
+            memory_file=str(memory_file),
+            memory_max_turns=10,
+        )
+        backend._append_history("user", "hello")
+        backend._append_history("assistant", "hi there")
+
+        assert memory_file.exists()
+
+        restored = AIBackend(
+            memory_enabled=True,
+            memory_file=str(memory_file),
+            memory_max_turns=10,
+        )
+        assert len(restored.conversation_history) == 2
+        assert restored.conversation_history[0]["role"] == "user"
+        assert restored.conversation_history[0]["content"] == "hello"
+        assert "timestamp" in restored.conversation_history[0]
+
+    def test_memory_clear_also_clears_file(self, tmp_path):
+        """Test clear_history removes in-memory and persisted history."""
+        memory_file = tmp_path / "conversation.json"
+        backend = AIBackend(
+            memory_enabled=True,
+            memory_file=str(memory_file),
+            memory_max_turns=10,
+        )
+        backend._append_history("user", "test")
+        assert memory_file.exists()
+
+        backend.clear_history()
+        assert backend.conversation_history == []
+        assert json.loads(memory_file.read_text(encoding="utf-8")) == []
+
+    def test_memory_corrupt_file_recovers_safely(self, tmp_path):
+        """Test corrupt JSON file is reset safely."""
+        memory_file = tmp_path / "conversation.json"
+        memory_file.parent.mkdir(parents=True, exist_ok=True)
+        memory_file.write_text("{not-valid-json", encoding="utf-8")
+
+        backend = AIBackend(
+            memory_enabled=True,
+            memory_file=str(memory_file),
+            memory_max_turns=10,
+        )
+        assert backend.conversation_history == []
+        assert json.loads(memory_file.read_text(encoding="utf-8")) == []
+
+    def test_memory_respects_max_turns_env(self, tmp_path, monkeypatch):
+        """Test max turns can be configured via environment variable."""
+        memory_file = tmp_path / "conversation.json"
+        monkeypatch.setenv("OPENCLAW_MEMORY_MAX_TURNS", "2")
+
+        backend = AIBackend(
+            memory_enabled=True,
+            memory_file=str(memory_file),
+        )
+        backend._append_history("user", "one")
+        backend._append_history("assistant", "two")
+        backend._append_history("user", "three")
+
+        assert len(backend.conversation_history) == 2
+        payload = json.loads(memory_file.read_text(encoding="utf-8"))
+        assert len(payload) == 2
     
     @pytest.mark.asyncio
     @pytest.mark.skipif(

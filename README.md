@@ -78,6 +78,9 @@ PYTHONPATH=. ELEVENLABS_API_KEY="$ELEVENLABS_API_KEY" OPENAI_API_KEY="$OPENAI_AP
 | `OPENCLAW_DEEPGRAM_API_KEY` | No | — | Required when `OPENCLAW_STT_PROVIDER=deepgram` |
 | `OPENCLAW_DEEPGRAM_MODEL` | No | `nova-3` | Deepgram model id |
 | `OPENCLAW_REQUIRE_AUTH` | No | `false` | Require API keys for clients |
+| `OPENCLAW_MEMORY_ENABLED` | No | `true` | Enable persistent conversation memory |
+| `OPENCLAW_MEMORY_FILE` | No | `.openclaw-voice/conversation_memory.json` | JSON file used to persist role/content/timestamp turns |
+| `OPENCLAW_MEMORY_MAX_TURNS` | No | `100` | Maximum number of stored turns kept in memory/file |
 
 *One of `OPENAI_API_KEY` or `OPENCLAW_GATEWAY_URL` required.
 
@@ -111,6 +114,17 @@ OPENCLAW_STT_PROVIDER=deepgram
 OPENCLAW_STT_LANGUAGE=ja
 OPENCLAW_DEEPGRAM_API_KEY=your-key
 OPENCLAW_DEEPGRAM_MODEL=nova-3
+```
+
+### Conversation Memory Persistence
+
+Conversation turns are persisted by default and survive server restarts/reconnects.  
+Stored fields are limited to `role`, `content`, and `timestamp` (no raw audio).
+
+```bash
+OPENCLAW_MEMORY_ENABLED=true
+OPENCLAW_MEMORY_FILE=.openclaw-voice/conversation_memory.json
+OPENCLAW_MEMORY_MAX_TURNS=100
 ```
 
 ## OpenClaw Gateway Integration

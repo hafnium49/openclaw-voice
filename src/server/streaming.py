@@ -153,8 +153,12 @@ async def process_with_streaming(
             })
         
         # Update conversation history
-        backend.conversation_history.append({"role": "user", "content": transcript})
-        backend.conversation_history.append({"role": "assistant", "content": full_response.strip()})
+        if hasattr(backend, "_append_history"):
+            backend._append_history("user", transcript)
+            backend._append_history("assistant", full_response.strip())
+        else:
+            backend.conversation_history.append({"role": "user", "content": transcript})
+            backend.conversation_history.append({"role": "assistant", "content": full_response.strip()})
         
         # Send completion signal
         await websocket.send_json({
