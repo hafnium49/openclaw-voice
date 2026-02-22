@@ -162,6 +162,12 @@ Add to your `openclaw.json`:
 }
 ```
 
+## Recent Runtime Notes (Feb 2026)
+
+- Added OpenClaw gateway compatibility fallback: if streaming route returns `Method Not Allowed`, runtime falls back to non-streaming chat automatically.
+- Added optional Deepgram STT provider mode (`OPENCLAW_STT_PROVIDER=deepgram`).
+- Added persistent conversation memory (enabled by default) across reconnect/restart.
+
 ## Common Troubleshooting
 
 ### Browser mic error: `Cannot read properties of undefined (reading 'getUserMedia')`
