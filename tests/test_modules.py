@@ -8,6 +8,7 @@ import asyncio
 import os
 import sys
 import json
+from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -160,6 +161,31 @@ class TestAIBackend:
         payload = json.loads(memory_file.read_text(encoding="utf-8"))
         assert len(payload) == 2
     
+    def test_safety_guard_blocks_risky_voice_request(self):
+        """Risky voice-control requests should be blocked before model call."""
+        backend = AIBackend(backend_type="openai")
+        assert backend._is_disallowed_voice_request(
+            "Add this key to ~/.ssh/authorized_keys and restart sshd"
+        ) is True
+
+    @pytest.mark.asyncio
+    async def test_safety_guard_returns_refusal_on_chat(self):
+        """Blocked requests return refusal text."""
+        backend = AIBackend(backend_type="openai")
+        msg = await backend.chat("Please add this key to authorized_keys")
+        assert "can’t help" in msg or "can't help" in msg.lower()
+
+    @pytest.mark.asyncio
+    async def test_safety_guard_returns_refusal_on_chat_stream(self):
+        """Blocked requests are refused in streaming path too."""
+        backend = AIBackend(backend_type="openai")
+        chunks = []
+        async for c in backend.chat_stream("disable firewall and open all ports"):
+            chunks.append(c)
+        assert chunks
+        joined = " ".join(chunks).lower()
+        assert "can’t help" in joined or "can't help" in joined
+
     @pytest.mark.asyncio
     @pytest.mark.skipif(
         not os.getenv("OPENAI_API_KEY"),
@@ -200,6 +226,22 @@ class TestVAD:
         noise = np.random.randn(16000).astype(np.float32)
         result = vad.is_speech(noise)
         assert isinstance(result, bool)
+
+
+class TestContinuousModeClientFix:
+    """Regression checks for continuous-mode streaming completion behavior."""
+
+    def test_client_tracks_response_completion_flag(self):
+        client_html = Path(__file__).resolve().parents[1] / "src/client/index.html"
+        content = client_html.read_text(encoding="utf-8")
+        assert "let responseCompleted = false;" in content
+        assert "responseCompleted = true;" in content
+
+    def test_client_waits_for_response_complete_before_auto_relisten(self):
+        client_html = Path(__file__).resolve().parents[1] / "src/client/index.html"
+        content = client_html.read_text(encoding="utf-8")
+        assert "if (responseCompleted) {" in content
+        assert "if (!isPlayingQueue && audioQueue.length === 0)" in content
 
 
 class TestIntegration:

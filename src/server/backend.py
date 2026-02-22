@@ -8,6 +8,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, AsyncGenerator
+import re
 
 from loguru import logger
 
@@ -45,6 +46,17 @@ class AIBackend:
         self.memory_max_turns = self._resolve_memory_max_turns(memory_max_turns)
         self.conversation_history: List[Dict] = []
         self._client = None
+        self._blocked_action_patterns = [
+            re.compile(r"\brm\s+-rf\b", re.IGNORECASE),
+            re.compile(r"\bauthorized_keys\b", re.IGNORECASE),
+            re.compile(r"\b(restart|reload)\s+sshd\b", re.IGNORECASE),
+            re.compile(r"\bdisable\s+firewall\b", re.IGNORECASE),
+            re.compile(r"\bopen\s+all\s+ports\b", re.IGNORECASE),
+            re.compile(r"\breverse\s+shell\b", re.IGNORECASE),
+            re.compile(r"\bexfiltrat(e|ion)\b", re.IGNORECASE),
+            re.compile(r"\b~\/\.oci\b", re.IGNORECASE),
+            re.compile(r"\b(crontab\b.*\bdelete|delete\s+all\s+cron)\b", re.IGNORECASE),
+        ]
         self._load_history()
         self._setup_client()
 
@@ -213,6 +225,18 @@ class AIBackend:
         else:
             logger.warning(f"Unknown backend type: {self.backend_type}")
     
+    def _is_disallowed_voice_request(self, text: str) -> bool:
+        normalized = (text or "").strip()
+        if not normalized:
+            return False
+        return any(p.search(normalized) for p in self._blocked_action_patterns)
+
+    def _safety_refusal(self) -> str:
+        return (
+            "I can’t help with risky system-control requests via voice chat. "
+            "If this is legitimate admin work, please use an approved written workflow."
+        )
+
     async def chat(self, user_message: str) -> str:
         """
         Send a message and get a response.
@@ -223,6 +247,10 @@ class AIBackend:
         Returns:
             AI response text
         """
+        if self._is_disallowed_voice_request(user_message):
+            logger.warning("Blocked risky voice request: {}", user_message[:160])
+            return self._safety_refusal()
+
         if self.backend_type == "openai" and self._client:
             return await self._chat_openai(user_message)
         else:
@@ -239,6 +267,11 @@ class AIBackend:
         Yields:
             Text chunks as they're generated
         """
+        if self._is_disallowed_voice_request(user_message):
+            logger.warning("Blocked risky voice request (stream): {}", user_message[:160])
+            yield self._safety_refusal()
+            return
+
         if self.backend_type == "openai" and self._client:
             async for chunk in self._chat_openai_stream(user_message):
                 yield chunk
