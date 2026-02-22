@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     # STT
     stt_model: str = "base"  # tiny, base, small, medium, large-v3-turbo
     stt_device: str = "auto"  # auto, cpu, cuda, mps
+    stt_language: str = "ja"  # ja, en, auto
     
     # TTS
     tts_model: str = "chatterbox"
@@ -97,6 +98,7 @@ async def startup():
     stt = WhisperSTT(
         model_name=settings.stt_model,
         device=settings.stt_device,
+        language=settings.stt_language,
     )
     
     # Initialize TTS

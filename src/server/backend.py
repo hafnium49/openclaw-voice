@@ -25,7 +25,9 @@ class AIBackend:
         self.api_key = api_key
         self.system_prompt = system_prompt or (
             "You are a helpful voice assistant. Keep responses concise and conversational. "
-            "Aim for 1-2 sentences unless more detail is needed."
+            "Aim for 1-2 sentences unless more detail is needed. "
+            "Reply in the same language as the user's most recent message. "
+            "If the user speaks Japanese, reply in natural Japanese."
         )
         self.conversation_history: List[Dict] = []
         self._client = None

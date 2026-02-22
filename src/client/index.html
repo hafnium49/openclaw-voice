@@ -371,6 +371,9 @@
         let isPlayingQueue = false;
         let currentResponseElement = null;
         let streamingText = '';
+        let playbackCtx = null;
+        let playbackGain = null;
+        let nextPlayTime = 0;
         
         function handleMessage(msg) {
             switch (msg.type) {
@@ -441,10 +444,10 @@
                 onAudioComplete();
                 return;
             }
-            
+
             isPlayingQueue = true;
             const { data, sampleRate } = audioQueue.shift();
-            
+
             try {
                 // Decode base64 to PCM
                 const binaryString = atob(data);
@@ -452,27 +455,45 @@
                 for (let i = 0; i < binaryString.length; i++) {
                     bytes[i] = binaryString.charCodeAt(i);
                 }
-                
+
                 // Convert to Int16 then Float32
                 const int16 = new Int16Array(bytes.buffer);
                 const float32 = new Float32Array(int16.length);
                 for (let i = 0; i < int16.length; i++) {
                     float32[i] = int16[i] / 32768.0;
                 }
-                
-                // Create audio buffer and play
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
-                const buffer = audioCtx.createBuffer(1, float32.length, sampleRate);
+
+                // Reuse a single AudioContext to avoid clicks/pops from per-chunk context churn
+                if (!playbackCtx || playbackCtx.state === 'closed') {
+                    playbackCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
+                    playbackGain = playbackCtx.createGain();
+                    playbackGain.gain.value = 1.0;
+                    playbackGain.connect(playbackCtx.destination);
+                    nextPlayTime = playbackCtx.currentTime;
+                }
+
+                const buffer = playbackCtx.createBuffer(1, float32.length, sampleRate);
                 buffer.copyToChannel(float32, 0);
-                
-                const source = audioCtx.createBufferSource();
+
+                const source = playbackCtx.createBufferSource();
                 source.buffer = buffer;
-                source.connect(audioCtx.destination);
+                source.connect(playbackGain);
+
+                // Gentle envelope reduces boundary click noise
+                const startAt = Math.max(playbackCtx.currentTime, nextPlayTime);
+                const endAt = startAt + buffer.duration;
+                const fade = Math.min(0.008, buffer.duration / 4);
+                playbackGain.gain.cancelScheduledValues(startAt);
+                playbackGain.gain.setValueAtTime(0.0, startAt);
+                playbackGain.gain.linearRampToValueAtTime(1.0, startAt + fade);
+                playbackGain.gain.setValueAtTime(1.0, Math.max(startAt + fade, endAt - fade));
+                playbackGain.gain.linearRampToValueAtTime(0.0, endAt);
+
+                nextPlayTime = endAt;
                 source.onended = () => {
-                    audioCtx.close();
                     playNextInQueue();
                 };
-                source.start(0);
+                source.start(startAt);
             } catch (e) {
                 console.error('Audio playback error:', e);
                 playNextInQueue();
@@ -549,7 +570,8 @@
                 
                 audioContext = new AudioContext({ sampleRate: 16000 });
                 audioSource = audioContext.createMediaStreamSource(mediaStream);
-                audioProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+                // Silero VAD on server expects 512 samples @16kHz
+                audioProcessor = audioContext.createScriptProcessor(512, 1, 1);
                 
                 let lastSoundTime = Date.now();
                 
