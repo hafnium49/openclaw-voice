@@ -154,7 +154,17 @@ class AIBackend:
             
         except Exception as e:
             logger.error(f"OpenAI streaming error: {e}")
-            yield "Sorry, I had trouble processing that."
+            # Some OpenAI-compatible gateways may not support streaming on this route.
+            # Gracefully fall back to non-streaming chat instead of returning a fixed error sentence.
+            try:
+                fallback = await self._chat_openai(user_message)
+                if fallback:
+                    yield fallback
+                else:
+                    yield "Sorry, I had trouble processing that."
+            except Exception as fallback_err:
+                logger.error(f"OpenAI non-stream fallback error: {fallback_err}")
+                yield "Sorry, I had trouble processing that."
     
     def clear_history(self):
         """Clear conversation history."""
