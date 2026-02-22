@@ -374,6 +374,7 @@
         let playbackCtx = null;
         let playbackGain = null;
         let nextPlayTime = 0;
+        let responseCompleted = false;
         
         function handleMessage(msg) {
             switch (msg.type) {
@@ -390,6 +391,7 @@
                     streamingText = '';
                     currentResponseElement = null;
                     audioQueue = [];
+                    responseCompleted = false;
                     break;
                 case 'response_text':
                     // Legacy non-streaming response
@@ -407,12 +409,18 @@
                     break;
                 case 'response_complete':
                     // Finalize the response
+                    responseCompleted = true;
                     if (currentResponseElement) {
                         currentResponseElement.innerHTML = `<strong>AI:</strong> ${renderMarkdown(msg.text)}`;
+                    }
+                    // If playback queue already drained, complete now
+                    if (!isPlayingQueue && audioQueue.length === 0) {
+                        onAudioComplete();
                     }
                     break;
                 case 'audio_response':
                     // Legacy non-streaming audio
+                    responseCompleted = true;
                     playAudioWithCallback(msg.data, msg.sample_rate, onAudioComplete);
                     setStatus('Speaking...');
                     break;
@@ -441,7 +449,10 @@
         async function playNextInQueue() {
             if (audioQueue.length === 0) {
                 isPlayingQueue = false;
-                onAudioComplete();
+                // In streaming mode, wait until server signals response completion
+                if (responseCompleted) {
+                    onAudioComplete();
+                }
                 return;
             }
 
