@@ -115,7 +115,7 @@ class ChatterboxTTS:
                 audio_generator = self._elevenlabs_client.text_to_speech.convert(
                     voice_id=self.voice_id,
                     text=text,
-                    model_id="eleven_turbo_v2_5",
+                    model_id="eleven_multilingual_v2",
                     output_format="pcm_24000",
                 )
                 for chunk in audio_generator:
@@ -135,7 +135,7 @@ class ChatterboxTTS:
                 audio_generator = self._elevenlabs_client.text_to_speech.convert(
                     voice_id=self.voice_id,
                     text=text,
-                    model_id="eleven_turbo_v2_5",  # Fastest model (~2x faster)
+                    model_id="eleven_multilingual_v2",  # More natural multilingual prosody
                     output_format="pcm_24000",  # 24kHz PCM (matches server expectation)
                 )
                 # Collect all chunks

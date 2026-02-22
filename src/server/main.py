@@ -286,7 +286,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         
                         full_response = ""
                         sentence_buffer = ""
-                        audio_chunks = []
+                        min_speech_chars = 10
                         
                         # Stream response and synthesize sentences as they complete
                         async for chunk in backend.chat_stream(transcript):
@@ -299,19 +299,25 @@ async def websocket_endpoint(websocket: WebSocket):
                                 "text": chunk,
                             })
                             
-                            # Check for sentence boundaries
-                            while any(sep in sentence_buffer for sep in ['. ', '! ', '? ', '.\n', '!\n', '?\n']):
+                            # Check for sentence boundaries (EN + JA)
+                            boundary_separators = ['. ', '! ', '? ', '.\n', '!\n', '?\n', '。', '！', '？']
+                            while any(sep in sentence_buffer for sep in boundary_separators):
                                 # Find first sentence boundary
                                 earliest_idx = len(sentence_buffer)
-                                for sep in ['. ', '! ', '? ', '.\n', '!\n', '?\n']:
+                                for sep in boundary_separators:
                                     idx = sentence_buffer.find(sep)
                                     if idx != -1 and idx < earliest_idx:
                                         earliest_idx = idx + len(sep)
-                                
+
                                 if earliest_idx < len(sentence_buffer):
                                     sentence = sentence_buffer[:earliest_idx].strip()
                                     sentence_buffer = sentence_buffer[earliest_idx:]
-                                    
+
+                                    # Coalesce tiny fragments for smoother TTS prosody
+                                    if sentence and len(sentence) < min_speech_chars:
+                                        sentence_buffer = sentence + sentence_buffer
+                                        break
+
                                     if sentence:
                                         # Clean and synthesize this sentence
                                         speech_text = clean_for_speech(sentence)
