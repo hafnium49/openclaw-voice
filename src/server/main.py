@@ -43,10 +43,12 @@ class Settings(BaseSettings):
     master_key: Optional[str] = None  # Admin key for full access
     
     # STT
-    stt_model: str = "base"  # tiny, base, small, medium, large-v3-turbo
-    stt_device: str = "auto"  # auto, cpu, cuda, mps
+    stt_provider: str = "whisper"  # whisper | deepgram
+    stt_model: str = "base"  # tiny, base, small, medium, large-v3-turbo (whisper)
+    stt_device: str = "auto"  # auto, cpu, cuda, mps (whisper)
     stt_language: str = "ja"  # ja, en, auto
-    
+    deepgram_api_key: Optional[str] = None
+    deepgram_model: str = "nova-3"    
     # TTS
     tts_model: str = "chatterbox"
     tts_voice: Optional[str] = None  # Path to voice sample for cloning
@@ -94,11 +96,14 @@ async def startup():
         logger.warning("⚠️ Authentication DISABLED (dev mode)")
     
     # Initialize STT
-    logger.info(f"Loading STT model: {settings.stt_model}")
+    logger.info(f"Loading STT provider: {settings.stt_provider}")
     stt = WhisperSTT(
+        provider=settings.stt_provider,
         model_name=settings.stt_model,
         device=settings.stt_device,
         language=settings.stt_language,
+        deepgram_api_key=settings.deepgram_api_key or os.getenv("DEEPGRAM_API_KEY"),
+        deepgram_model=settings.deepgram_model,
     )
     
     # Initialize TTS

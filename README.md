@@ -71,9 +71,12 @@ PYTHONPATH=. ELEVENLABS_API_KEY="$ELEVENLABS_API_KEY" OPENAI_API_KEY="$OPENAI_AP
 | `OPENCLAW_GATEWAY_URL` | No | — | OpenClaw gateway URL for full agent |
 | `OPENCLAW_GATEWAY_TOKEN` | No | — | Gateway auth token |
 | `OPENCLAW_PORT` | No | `8765` | Server port |
+| `OPENCLAW_STT_PROVIDER` | No | `whisper` | STT backend: `whisper` or `deepgram` |
 | `OPENCLAW_STT_MODEL` | No | `base` | Whisper model size |
 | `OPENCLAW_STT_DEVICE` | No | `auto` | Device: `auto`, `cpu`, `cuda`, `mps` |
-| `OPENCLAW_STT_LANGUAGE` | No | `en` | Whisper language hint (`ja`, `en`, `auto`) |
+| `OPENCLAW_STT_LANGUAGE` | No | `en` | STT language hint (`ja`, `en`, `auto`) |
+| `OPENCLAW_DEEPGRAM_API_KEY` | No | — | Required when `OPENCLAW_STT_PROVIDER=deepgram` |
+| `OPENCLAW_DEEPGRAM_MODEL` | No | `nova-3` | Deepgram model id |
 | `OPENCLAW_REQUIRE_AUTH` | No | `false` | Require API keys for clients |
 
 *One of `OPENAI_API_KEY` or `OPENCLAW_GATEWAY_URL` required.
@@ -98,6 +101,17 @@ PYTHONPATH=. ELEVENLABS_API_KEY="$ELEVENLABS_API_KEY" OPENAI_API_KEY="$OPENAI_AP
 | Mock | Local | None | 0ms | For testing (silence) |
 
 ElevenLabs defaults can be tuned for quality/latency tradeoff. For Japanese conversational quality, `eleven_multilingual_v2` is recommended over the fastest turbo setting.
+
+### Deepgram STT mode (optional)
+
+For lower STT latency experiments:
+
+```bash
+OPENCLAW_STT_PROVIDER=deepgram
+OPENCLAW_STT_LANGUAGE=ja
+OPENCLAW_DEEPGRAM_API_KEY=your-key
+OPENCLAW_DEEPGRAM_MODEL=nova-3
+```
 
 ## OpenClaw Gateway Integration
 

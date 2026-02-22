@@ -1,8 +1,12 @@
 """
-Speech-to-Text module using Whisper.
+Speech-to-Text module using Whisper or Deepgram.
 """
 
 import asyncio
+import io
+import json
+import urllib.request
+import wave
 from typing import Optional
 
 import numpy as np
@@ -17,16 +21,30 @@ class WhisperSTT:
         model_name: str = "base",
         device: str = "auto",
         language: str = "en",
+        provider: str = "whisper",
+        deepgram_api_key: Optional[str] = None,
+        deepgram_model: str = "nova-3",
     ):
         self.model_name = model_name
         self.device = device
         self.language = language
+        self.provider = provider
+        self.deepgram_api_key = deepgram_api_key
+        self.deepgram_model = deepgram_model
         self.model = None
         self._backend = "mock"
         self._load_model()
     
     def _load_model(self):
-        """Load the Whisper model."""
+        """Load STT backend."""
+        if self.provider == "deepgram":
+            if not self.deepgram_api_key:
+                logger.warning("Deepgram provider selected but API key missing; falling back")
+            else:
+                self._backend = "deepgram"
+                logger.info(f"✅ Deepgram STT ready (model={self.deepgram_model}, lang={self.language})")
+                return
+
         # Try faster-whisper first
         try:
             from faster_whisper import WhisperModel
@@ -90,6 +108,9 @@ class WhisperSTT:
     
     def _transcribe_sync(self, audio: np.ndarray) -> str:
         """Synchronous transcription."""
+        if self._backend == "deepgram":
+            return self._transcribe_deepgram(audio)
+
         if self._backend == "faster-whisper":
             segments, info = self.model.transcribe(
                 audio,
@@ -107,3 +128,45 @@ class WhisperSTT:
             # Mock mode - return placeholder
             logger.debug(f"Mock STT: received {len(audio)} samples")
             return "[Mock transcription - install whisper for real STT]"
+
+    def _transcribe_deepgram(self, audio: np.ndarray) -> str:
+        """Transcribe using Deepgram prerecorded REST endpoint."""
+        try:
+            # Ensure float32 mono in [-1, 1]
+            audio = np.asarray(audio, dtype=np.float32)
+            audio = np.clip(audio, -1.0, 1.0)
+            pcm16 = (audio * 32767.0).astype(np.int16)
+
+            wav_buf = io.BytesIO()
+            with wave.open(wav_buf, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(16000)
+                wf.writeframes(pcm16.tobytes())
+
+            url = (
+                f"https://api.deepgram.com/v1/listen?model={self.deepgram_model}"
+                f"&language={self.language}&smart_format=true&punctuate=true"
+            )
+            req = urllib.request.Request(
+                url,
+                data=wav_buf.getvalue(),
+                headers={
+                    "Authorization": f"Token {self.deepgram_api_key}",
+                    "Content-Type": "audio/wav",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+
+            return (
+                payload.get("results", {})
+                .get("channels", [{}])[0]
+                .get("alternatives", [{}])[0]
+                .get("transcript", "")
+                .strip()
+            )
+        except Exception as e:
+            logger.error(f"Deepgram STT error: {e}")
+            return ""
